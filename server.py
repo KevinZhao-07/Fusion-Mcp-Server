@@ -75,6 +75,35 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["radius"]
             }
+        ),
+        # CHAMFER TOOL - Bevel the edges of a 3D body
+        Tool(
+            name="chamfer_edges",
+            description="Chamfer (bevel) all edges of the most recent 3D body in Fusion 360. Must be called AFTER creating a 3D body (via extrusion). All edges will be chamfered with the specified distance and angle.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "distance": {
+                        "type": "number",
+                        "description": "Chamfer distance in cm. Must be greater than 0 and less then half of minimum dimension of the body (length, width, or extrusion distance). If the distance is too large relative to the geometry, the chamfer will fail. Recommended to use values less than half of the smallest body dimension."
+                    },
+                    "angle": {
+                        "type": "number",
+                        "description": "Chamfer angle in degrees. Defaults to 45 degrees if not provided. Common values: 30, 45, 60. Must be between 0 and 90 degrees."
+                    }
+                },
+                "required": ["distance"]
+            }
+        ),
+        # CLEAR TOOL - Clear all sketches and bodies
+        Tool(
+            name="clear_all",
+            description="Clear all sketches and 3D bodies from the Fusion 360 design. This removes everything from the workspace, giving you a clean slate.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
         )
     ]
 
@@ -254,6 +283,114 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                              f"- No 3D body exists (did you extrude first?)\n"
                              f"- Radius is too large for the geometry\n"
                              f"- The body has no edges to fillet"
+                    )]
+
+        except httpx.ConnectError:
+            return [TextContent(
+                type="text",
+                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"❌ Error: {str(e)}"
+            )]
+
+    elif name == "chamfer_edges":
+        # Extract the parameters
+        distance = arguments["distance"]
+        angle = arguments.get("angle", 45.0)  # Default to 45 degrees
+
+        # VALIDATION
+        if distance <= 0:
+            return [TextContent(
+                type="text",
+                text=f"❌ Distance must be greater than 0 (you gave: {distance})"
+            )]
+
+        if distance >= 10:
+            return [TextContent(
+                type="text",
+                text=f"❌ Distance must be atlesat less than half of the smallest side length  (you gave: {distance}). Large chamfers can fail."
+            )]
+
+        if angle <= 0 or angle >= 90:
+            return [TextContent(
+                type="text",
+                text=f"❌ Angle must be between 0 and 90 degrees (you gave: {angle})"
+            )]
+
+        # Make the HTTP call to Fusion
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    FUSION_URL,
+                    json={
+                        "tool": "chamfer",
+                        "params": {
+                            "distance": distance,
+                            "angle": angle
+                        }
+                    },
+                    timeout=10.0
+                )
+
+                response.raise_for_status()
+                result = response.json()
+
+                if result.get("status") == "success":
+                    return [TextContent(
+                        type="text",
+                        text=f"✅ Chamfer applied to all edges: {distance} cm distance at {angle}°"
+                    )]
+                else:
+                    error_msg = result.get('message', 'Unknown error')
+                    return [TextContent(
+                        type="text",
+                        text=f"❌ Chamfer failed: {error_msg}\n\n"
+                             f"Common reasons:\n"
+                             f"- No 3D body exists (did you extrude first?)\n"
+                             f"- Distance is too large for the geometry\n"
+                             f"- The body has no edges to chamfer"
+                    )]
+
+        except httpx.ConnectError:
+            return [TextContent(
+                type="text",
+                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"❌ Error: {str(e)}"
+            )]
+
+    elif name == "clear_all":
+        # No parameters needed for clear
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    FUSION_URL,
+                    json={
+                        "tool": "clear",
+                        "params": {}
+                    },
+                    timeout=10.0
+                )
+
+                response.raise_for_status()
+                result = response.json()
+
+                if result.get("status") == "success":
+                    return [TextContent(
+                        type="text",
+                        text=f"✅ Cleared all sketches and bodies from Fusion 360 workspace"
+                    )]
+                else:
+                    error_msg = result.get('message', 'Unknown error')
+                    return [TextContent(
+                        type="text",
+                        text=f"❌ Clear failed: {error_msg}"
                     )]
 
         except httpx.ConnectError:
