@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "fusion-cad": {
+      "command": "python",
+      "args": [
+        "C:\\Users\\kevin\\Desktop\\Fusion-Mcp-Project\\server.py"
+      ]
+    }
+  }
+}
