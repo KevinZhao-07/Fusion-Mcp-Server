@@ -102,9 +102,58 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 fillet = fillets.add(filletInput)
                 app.log(f"Fillet created: {radius} cm radius")
 
+            if(tool == "chamfer"):
+                distance = request_data["params"]["distance"]
+                angle = request_data["params"].get("angle", 45.0)  # Default to 45 degrees if not provided
+
+                # Get the active design and root component
+                design = app.activeProduct
+                rootComp = design.rootComponent
+
+                # Get the last body created
+                body = rootComp.bRepBodies.item(rootComp.bRepBodies.count - 1)
+
+                # Get all edges from the body
+                edges = adsk.core.ObjectCollection.create()
+                for edge in body.edges:
+                    edges.add(edge)
+
+                # Create a chamfer feature
+                chamfers = rootComp.features.chamferFeatures
+                chamferInput = chamfers.createInput(edges, True)
+
+                # Set chamfer with distance and angle
+                chamferInput.setToDistanceAndAngle(
+                    adsk.core.ValueInput.createByReal(distance),
+                    adsk.core.ValueInput.createByString(f"{angle} deg")
+                )
+
+                # Create the chamfer
+                chamfer = chamfers.add(chamferInput)
+                app.log(f"Chamfer created: {distance} cm distance at {angle} degrees")
+
+            if(tool == "clear"):
+                # Get the active design and root component
+                design = app.activeProduct
+                rootComp = design.rootComponent
+
+                # Delete all bodies
+                bodies_count = rootComp.bRepBodies.count
+                for i in range(bodies_count - 1, -1, -1):
+                    body = rootComp.bRepBodies.item(i)
+                    body.deleteMe()
+
+                # Delete all sketches
+                sketches_count = rootComp.sketches.count
+                for i in range(sketches_count - 1, -1, -1):
+                    sketch = rootComp.sketches.item(i)
+                    sketch.deleteMe()
+
+                app.log(f"Cleared {bodies_count} bodies and {sketches_count} sketches")
+
             response = {
                 "status": "success",
-                "message": "plesae tell me you see this",
+                "message": "hi",
                 "received": request_data
             }
 
@@ -153,7 +202,7 @@ def run(context):
 
         # Show success message AFTER starting thread
         ui.messageBox('Fusion HTTP Server started on port 8080!')
-        app.log('BRO WHAT ISGON GON')
+        app.log('Thread started')
     except Exception as e:
         ui.messageBox(f'Error: {str(e)}')
         app.log(f'Failed:\n{traceback.format_exc()}')
