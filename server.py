@@ -30,7 +30,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="create_rectangle",
-            description="Create a rectangle in Fusion 360 on the XY plane (ground plane). The rectangle will be positioned with one corner at (x, y) and extend in the positive X and Y directions.",
+            description="Create a rectangle in Fusion 360 on the XZ plane (vertical plane - front view). The rectangle will be positioned with one corner at (x, z) and extend in the positive X and Z directions.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -40,15 +40,15 @@ async def list_tools() -> list[Tool]:
                     },
                     "width": {
                         "type": "number",
-                        "description": "Width in cm (extends in positive Y direction)"
+                        "description": "Width in cm (extends in positive Z direction - vertical)"
                     },
                     "x": {
                         "type": "number",
                         "description": "X coordinate for the starting corner in cm. Defaults to 0 if not provided."
                     },
-                    "y": {
+                    "z": {
                         "type": "number",
-                        "description": "Y coordinate for the starting corner in cm. Defaults to 0 if not provided."
+                        "description": "Z coordinate for the starting corner in cm (vertical position). Defaults to 0 if not provided."
                     }
                 },
                 "required": ["length", "width"]
@@ -123,6 +123,21 @@ async def list_tools() -> list[Tool]:
                 "required": ["distance"]
             }
         ),
+        # EXTRUDE CUT TOOL - Cut through existing bodies
+        Tool(
+            name="extrude_cut",
+            description="Extrude cut through existing bodies in Fusion 360. Must be called AFTER creating a sketch (like create_rectangle or sketch_circle). The sketch profile will be extruded and automatically cut through any bodies it intersects. The extrusion will be perpendicular to the sketch plane.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "distance": {
+                        "type": "number",
+                        "description": "Extrusion distance in cm. Must be greater than 0 and less than 1000. This is how far the cut will extend."
+                    }
+                },
+                "required": ["distance"]
+            }
+        ),
         # FILLET TOOL - Round the edges of a 3D body
         Tool(
             name="fillet_edges",
@@ -186,7 +201,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         length = arguments["length"]
         width = arguments["width"]
         x = arguments.get("x", 0)  # Default to 0 if not provided
-        y = arguments.get("y", 0)  # Default to 0 if not provided
+        z = arguments.get("z", 0)  # Default to 0 if not provided
 
         # NOW: Actually call Fusion!
         # We'll make an HTTP POST request to your Fusion server
@@ -203,7 +218,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             "length": length,
                             "width": width,
                             "x": x,
-                            "y": y
+                            "z": z
                         }
                     },
                     timeout=10.0  # Wait up to 10 seconds
@@ -215,7 +230,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 # Check the response from Fusion
                 if result.get("status") == "success":
-                    if x == 0 and y == 0:
+                    if x == 0 and z == 0:
                         return [TextContent(
                             type="text",
                             text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm at origin (0, 0)"
@@ -223,7 +238,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     else:
                         return [TextContent(
                             type="text",
-                            text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm at position ({x}, {y})"
+                            text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm at position ({x}, {z})"
                         )]
                 else:
                     return [TextContent(
@@ -421,6 +436,65 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         type="text",
                         text=f"❌ Extrusion failed: {error_msg}\n\n"
                              f"Did you create a sketch first (like create_rectangle)?"
+                    )]
+
+        except httpx.ConnectError:
+            return [TextContent(
+                type="text",
+                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"❌ Error: {str(e)}"
+            )]
+
+    elif name == "extrude_cut":
+        # Extract the distance parameter
+        distance = arguments["distance"]
+
+        # VALIDATION
+        if distance <= 0:
+            return [TextContent(
+                type="text",
+                text=f"❌ Distance must be greater than 0 (you gave: {distance})"
+            )]
+
+        if distance >= 1000:
+            return [TextContent(
+                type="text",
+                text=f"❌ Distance must be less than 1000 cm (you gave: {distance})"
+            )]
+
+        # Make the HTTP call to Fusion
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    FUSION_URL,
+                    json={
+                        "tool": "extrudeCut",
+                        "params": {
+                            "distance": distance
+                        }
+                    },
+                    timeout=10.0
+                )
+
+                response.raise_for_status()
+                result = response.json()
+
+                if result.get("status") == "success":
+                    return [TextContent(
+                        type="text",
+                        text=f"✅ Extrude cut created: {distance} cm deep, cutting through intersecting bodies"
+                    )]
+                else:
+                    # Give helpful error message
+                    error_msg = result.get('message', 'Unknown error')
+                    return [TextContent(
+                        type="text",
+                        text=f"❌ Extrude cut failed: {error_msg}\n\n"
+                             f"Did you create a sketch first (like sketch_circle or create_rectangle)?"
                     )]
 
         except httpx.ConnectError:
