@@ -30,17 +30,25 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="create_rectangle",
-            description="Create a rectangle in Fusion 360",
+            description="Create a rectangle in Fusion 360 on the XY plane (ground plane). The rectangle will be positioned with one corner at (x, y) and extend in the positive X and Y directions.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "length": {
                         "type": "number",
-                        "description": "Length in cm"
+                        "description": "Length in cm (extends in positive X direction)"
                     },
                     "width": {
                         "type": "number",
-                        "description": "Width in cm"
+                        "description": "Width in cm (extends in positive Y direction)"
+                    },
+                    "x": {
+                        "type": "number",
+                        "description": "X coordinate for the starting corner in cm. Defaults to 0 if not provided."
+                    },
+                    "y": {
+                        "type": "number",
+                        "description": "Y coordinate for the starting corner in cm. Defaults to 0 if not provided."
                     }
                 },
                 "required": ["length", "width"]
@@ -123,6 +131,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "create_rectangle":
         length = arguments["length"]
         width = arguments["width"]
+        x = arguments.get("x", 0)  # Default to 0 if not provided
+        y = arguments.get("y", 0)  # Default to 0 if not provided
 
         # NOW: Actually call Fusion!
         # We'll make an HTTP POST request to your Fusion server
@@ -137,7 +147,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         "tool": "sketchRectangle",
                         "params": {
                             "length": length,
-                            "width": width
+                            "width": width,
+                            "x": x,
+                            "y": y
                         }
                     },
                     timeout=10.0  # Wait up to 10 seconds
@@ -149,10 +161,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 # Check the response from Fusion
                 if result.get("status") == "success":
-                    return [TextContent(
-                        type="text",
-                        text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm"
-                    )]
+                    if x == 0 and y == 0:
+                        return [TextContent(
+                            type="text",
+                            text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm at origin (0, 0)"
+                        )]
+                    else:
+                        return [TextContent(
+                            type="text",
+                            text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm at position ({x}, {y})"
+                        )]
                 else:
                     return [TextContent(
                         type="text",
