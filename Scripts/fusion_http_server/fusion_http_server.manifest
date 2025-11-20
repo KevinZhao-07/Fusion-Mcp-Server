@@ -1,12 +1,12 @@
 {
-	"autodeskProduct":	"Fusion",
+	"autodeskProduct":	"Fusion360",
 	"type":	"script",
+	"id":	"fusion_http_server",
 	"author":	"Kevin Zhao",
 	"description":	{
-		"":	"Adam take home"
+		"":	"Adam take home - HTTP server for MCP integration"
 	},
-	"version":	"",
+	"version":	"1.0.0",
 	"supportedOS":	"windows|mac",
-	"editEnabled":	true,
-	"iconFilename":	"ScriptIcon.svg"
+	"editEnabled":	true
 }
