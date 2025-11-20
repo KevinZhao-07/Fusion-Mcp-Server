@@ -4,6 +4,8 @@ import adsk.fusion
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import threading
+import importlib
+import sys
 
 # Initialize the global variables for the Application and UserInterface objects.
 app = adsk.core.Application.get()
@@ -55,19 +57,20 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 design = app.activeProduct
                 rootComp = design.rootComponent
 
-                # Get all profiles from the most recent sketch
+                # Get the most recent sketch
                 sketch = rootComp.sketches.item(rootComp.sketches.count - 1)
 
-                # Create a collection of profiles to extrude
-                profiles = adsk.core.ObjectCollection.create()
-                for profile in sketch.profiles:
-                    profiles.add(profile)
+                # Get the profile (the closed area inside the rectangle)
+                if sketch.profiles.count > 0:
+                    profile = sketch.profiles.item(0)
+                else:
+                    raise Exception("No profile found in sketch")
 
                 # Create an extrude feature
                 extrudes = rootComp.features.extrudeFeatures
-                extrudeInput = extrudes.createInput(profiles, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+                extrudeInput = extrudes.createInput(profile, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
 
-                # Define the extrude distance
+                # Define the extrude distance (positive for upward)
                 distanceValue = adsk.core.ValueInput.createByReal(distance)
                 extrudeInput.setDistanceExtent(False, distanceValue)
 
@@ -98,7 +101,6 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 # Create the fillet
                 fillet = fillets.add(filletInput)
                 app.log(f"Fillet created: {radius} cm radius")
-
 
             response = {
                 "status": "success",
@@ -138,9 +140,11 @@ def run(context):
         if http_server:
             try:
                 http_server.shutdown()
+                http_server.server_close()
+                http_server = None
                 app.log('Stopped previous server instance')
-            except:
-                pass
+            except Exception as e:
+                app.log(f'Error stopping server: {e}')
 
         # Start the server in a separate thread so it doesn't block Fusion
         server_thread = threading.Thread(target=start_server)
@@ -149,7 +153,7 @@ def run(context):
 
         # Show success message AFTER starting thread
         ui.messageBox('Fusion HTTP Server started on port 8080!')
-        app.log('hello')
+        app.log('BRO WHAT ISGON GON')
     except Exception as e:
         ui.messageBox(f'Error: {str(e)}')
         app.log(f'Failed:\n{traceback.format_exc()}')
@@ -159,4 +163,6 @@ def stop(context):
     global http_server
     if http_server:
         http_server.shutdown()
+        http_server.server_close()  # Properly close the socket
+        http_server = None  # Clear the reference
         ui.messageBox('Fusion HTTP Server stopped')
