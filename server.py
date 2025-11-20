@@ -54,6 +54,33 @@ async def list_tools() -> list[Tool]:
                 "required": ["length", "width"]
             }
         ),
+        # SKETCH LINE TOOL - Create a line on the XZ plane
+        Tool(
+            name="sketch_line",
+            description="Create a line in Fusion 360 on the XZ plane (vertical plane - front view). If xTwo and zTwo are not provided, the line will be drawn from the origin (0, 0) to (xOne, zOne). If all coordinates are provided, the line will be drawn from (xOne, zOne) to (xTwo, zTwo).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "xOne": {
+                        "type": "number",
+                        "description": "X coordinate of the first point (or end point if xTwo/zTwo not provided) in cm"
+                    },
+                    "zOne": {
+                        "type": "number",
+                        "description": "Z coordinate of the first point (or end point if xTwo/zTwo not provided) in cm"
+                    },
+                    "xTwo": {
+                        "type": "number",
+                        "description": "X coordinate of the second point in cm. Optional - if not provided, line starts from origin."
+                    },
+                    "zTwo": {
+                        "type": "number",
+                        "description": "Z coordinate of the second point in cm. Optional - if not provided, line starts from origin."
+                    }
+                },
+                "required": ["xOne", "zOne"]
+            }
+        ),
         # EXTRUDE TOOL - Turn a 2D sketch into a 3D body
         Tool(
             name="extrude_profile",
@@ -185,6 +212,66 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )]
         except Exception as e:
             # Any other error
+            return [TextContent(
+                type="text",
+                text=f"❌ Error: {str(e)}"
+            )]
+
+    elif name == "sketch_line":
+        # Extract the parameters
+        x_one = arguments["xOne"]
+        z_one = arguments["zOne"]
+        x_two = arguments.get("xTwo")
+        z_two = arguments.get("zTwo")
+
+        # Make the HTTP call to Fusion
+        try:
+            async with httpx.AsyncClient() as client:
+                # Build params - only include xTwo/zTwo if both are provided
+                params = {
+                    "xOne": x_one,
+                    "zOne": z_one
+                }
+                if x_two is not None and z_two is not None:
+                    params["xTwo"] = x_two
+                    params["zTwo"] = z_two
+
+                response = await client.post(
+                    FUSION_URL,
+                    json={
+                        "tool": "sketchLine",
+                        "params": params
+                    },
+                    timeout=10.0
+                )
+
+                response.raise_for_status()
+                result = response.json()
+
+                if result.get("status") == "success":
+                    if x_two is None or z_two is None:
+                        return [TextContent(
+                            type="text",
+                            text=f"✅ Line created from origin (0, 0) to ({x_one}, {z_one})"
+                        )]
+                    else:
+                        return [TextContent(
+                            type="text",
+                            text=f"✅ Line created from ({x_one}, {z_one}) to ({x_two}, {z_two})"
+                        )]
+                else:
+                    error_msg = result.get('message', 'Unknown error')
+                    return [TextContent(
+                        type="text",
+                        text=f"❌ Line creation failed: {error_msg}"
+                    )]
+
+        except httpx.ConnectError:
+            return [TextContent(
+                type="text",
+                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
+            )]
+        except Exception as e:
             return [TextContent(
                 type="text",
                 text=f"❌ Error: {str(e)}"

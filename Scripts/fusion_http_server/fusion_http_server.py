@@ -58,6 +58,34 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
 
                 app.log(f"Rectangle created: {length} x {width} at ({x}, {z})")
 
+            if(tool == "sketchLine"):
+                x_one = request_data["params"]["xOne"]
+                z_one = request_data["params"]["zOne"]
+                x_two = request_data["params"].get("xTwo", None)
+                z_two = request_data["params"].get("zTwo", None)
+
+                # Get the active design and root component
+                design = app.activeProduct
+                rootComp = design.rootComponent
+
+                # Create a sketch on the XZ plane (vertical plane - front view)
+                sketch = rootComp.sketches.add(rootComp.xZConstructionPlane)
+
+                # Define the two points for the line
+                # If xTwo and zTwo are not provided, line goes from origin to (xOne, zOne)
+                if x_two is None or z_two is None:
+                    point1 = adsk.core.Point3D.create(0, 0, 0)
+                    point2 = adsk.core.Point3D.create(x_one, z_one, 0)
+                    app.log(f"Line created from origin (0, 0) to ({x_one}, {z_one})")
+                else:
+                    point1 = adsk.core.Point3D.create(x_one, z_one, 0)
+                    point2 = adsk.core.Point3D.create(x_two, z_two, 0)
+                    app.log(f"Line created from ({x_one}, {z_one}) to ({x_two}, {z_two})")
+
+                # Create the line
+                lines = sketch.sketchCurves.sketchLines
+                line = lines.addByTwoPoints(point1, point2)
+
             if(tool == "extrude"):
                 distance = request_data["params"]["distance"]
 
