@@ -32,6 +32,8 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
             if(tool == "sketchRectangle"):
                 length = request_data["params"]["length"]
                 width = request_data["params"]["width"]
+                x = request_data["params"].get("x", 0)  # Default to 0 if not provided
+                z = request_data["params"].get("z", 0)  # Default to 0 if not provided
 
                 # Get the active design and root component
                 design = app.activeProduct
@@ -41,14 +43,20 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 sketch = rootComp.sketches.add(rootComp.xZConstructionPlane)
 
                 # Define two corner points for the rectangle
-                point1 = adsk.core.Point3D.create(0, 0, 0)
-                point2 = adsk.core.Point3D.create(length, width, 0)
+                # When using sketch points on XZ plane, use the sketch's model to sketch space
+                # In the sketch coordinate system: first param = X, second param = y third param = z
+                point1 = adsk.core.Point3D.create(x, z, 0)
+                point2 = adsk.core.Point3D.create(x + length, z + width, 0)
+
+                # # Convert world coordinates to sketch coordinates
+                # point1 = sketch.modelToSketchSpace(point1)
+                # point2 = sketch.modelToSketchSpace(point2)
 
                 # Create the rectangle using Fusion's built-in function
                 lines = sketch.sketchCurves.sketchLines
                 rectangle = lines.addTwoPointRectangle(point1, point2)
 
-                app.log(f"Rectangle created: {length} x {width}")
+                app.log(f"Rectangle created: {length} x {width} at ({x}, {z})")
 
             if(tool == "extrude"):
                 distance = request_data["params"]["distance"]
