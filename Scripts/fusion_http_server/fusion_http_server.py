@@ -143,6 +143,34 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 extrude = extrudes.add(extrudeInput)
                 app.log(f"Extrude created: {distance} cm")
 
+            if(tool == "extrudeCut"):
+                distance = request_data["params"]["distance"]
+
+                # Get the active design and root component
+                design = app.activeProduct
+                rootComp = design.rootComponent
+
+                # Get the most recent sketch
+                sketch = rootComp.sketches.item(rootComp.sketches.count - 1)
+
+                # Get the profile (the closed area inside the sketch)
+                if sketch.profiles.count > 0:
+                    profile = sketch.profiles.item(0)
+                else:
+                    raise Exception("No profile found in sketch")
+
+                # Create an extrude cut feature
+                extrudes = rootComp.features.extrudeFeatures
+                extrudeInput = extrudes.createInput(profile, adsk.fusion.FeatureOperations.CutFeatureOperation)
+
+                # Define the extrude distance
+                distanceValue = adsk.core.ValueInput.createByReal(distance)
+                extrudeInput.setDistanceExtent(False, distanceValue)
+
+                # Create the extrude cut - Fusion will automatically cut any bodies it intersects
+                extrude = extrudes.add(extrudeInput)
+                app.log(f"Extrude cut created: {distance} cm")
+
             if(tool == "fillet"):
                 radius = request_data["params"]["radius"]
 
