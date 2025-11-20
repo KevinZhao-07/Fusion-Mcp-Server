@@ -86,6 +86,35 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 lines = sketch.sketchCurves.sketchLines
                 line = lines.addByTwoPoints(point1, point2)
 
+            if(tool == "sketchCircle"):
+                # Get radius or diameter (one is required)
+                radius = request_data["params"].get("radius", None)
+                diameter = request_data["params"].get("diameter", None)
+                x = request_data["params"].get("x", 0)
+                z = request_data["params"].get("z", 0)
+
+                # Calculate radius from diameter if needed
+                if radius is None and diameter is not None:
+                    radius = diameter / 2.0
+                elif radius is None and diameter is None:
+                    raise Exception("Either radius or diameter must be provided")
+
+                # Get the active design and root component
+                design = app.activeProduct
+                rootComp = design.rootComponent
+
+                # Create a sketch on the XZ plane (vertical plane - front view)
+                sketch = rootComp.sketches.add(rootComp.xZConstructionPlane)
+
+                # Define the center point of the circle on XZ plane
+                center = adsk.core.Point3D.create(x, z, 0)
+
+                # Create the circle
+                circles = sketch.sketchCurves.sketchCircles
+                circle = circles.addByCenterRadius(center, radius)
+
+                app.log(f"Circle created: radius {radius} cm at ({x}, {z})")
+
             if(tool == "extrude"):
                 distance = request_data["params"]["distance"]
 

@@ -81,6 +81,33 @@ async def list_tools() -> list[Tool]:
                 "required": ["xOne", "zOne"]
             }
         ),
+        # SKETCH CIRCLE TOOL - Create a circle on the XZ plane
+        Tool(
+            name="sketch_circle",
+            description="Create a circle in Fusion 360 on the XZ plane (vertical plane - front view). You can specify either radius or diameter (at least one is required). The x and z coordinates specify the center of the circle and default to (0, 0) if not provided.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "radius": {
+                        "type": "number",
+                        "description": "Radius of the circle in cm. Either radius or diameter must be provided."
+                    },
+                    "diameter": {
+                        "type": "number",
+                        "description": "Diameter of the circle in cm. Either radius or diameter must be provided."
+                    },
+                    "x": {
+                        "type": "number",
+                        "description": "X coordinate of the circle center in cm. Defaults to 0 if not provided."
+                    },
+                    "z": {
+                        "type": "number",
+                        "description": "Z coordinate of the circle center in cm. Defaults to 0 if not provided."
+                    }
+                },
+                "required": []
+            }
+        ),
         # EXTRUDE TOOL - Turn a 2D sketch into a 3D body
         Tool(
             name="extrude_profile",
@@ -264,6 +291,76 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     return [TextContent(
                         type="text",
                         text=f"❌ Line creation failed: {error_msg}"
+                    )]
+
+        except httpx.ConnectError:
+            return [TextContent(
+                type="text",
+                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"❌ Error: {str(e)}"
+            )]
+
+    elif name == "sketch_circle":
+        # Extract the parameters
+        radius = arguments.get("radius")
+        diameter = arguments.get("diameter")
+        x = arguments.get("x", 0)
+        z = arguments.get("z", 0)
+
+        # Validation - at least one of radius or diameter must be provided
+        if radius is None and diameter is None:
+            return [TextContent(
+                type="text",
+                text="❌ Either radius or diameter must be provided"
+            )]
+
+        # Make the HTTP call to Fusion
+        try:
+            async with httpx.AsyncClient() as client:
+                # Build params
+                params = {
+                    "x": x,
+                    "z": z
+                }
+                if radius is not None:
+                    params["radius"] = radius
+                if diameter is not None:
+                    params["diameter"] = diameter
+
+                response = await client.post(
+                    FUSION_URL,
+                    json={
+                        "tool": "sketchCircle",
+                        "params": params
+                    },
+                    timeout=10.0
+                )
+
+                response.raise_for_status()
+                result = response.json()
+
+                if result.get("status") == "success":
+                    # Calculate what to display
+                    display_radius = radius if radius is not None else diameter / 2.0
+                    if x == 0 and z == 0:
+                        return [TextContent(
+                            type="text",
+                            text=f"✅ Circle created at origin with radius {display_radius} cm"
+                        )]
+                    else:
+                        return [TextContent(
+                            type="text",
+                            text=f"✅ Circle created at ({x}, {z}) with radius {display_radius} cm"
+                        )]
+                else:
+                    error_msg = result.get('message', 'Unknown error')
+                    return [TextContent(
+                        type="text",
+                        text=f"❌ Circle creation failed: {error_msg}"
                     )]
 
         except httpx.ConnectError:
