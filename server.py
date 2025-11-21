@@ -30,7 +30,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="create_rectangle",
-            description="Create a rectangle in Fusion 360 on the XZ plane (vertical plane - front view). The rectangle will be positioned with one corner at (x, z) and extend in the positive X and Z directions.",
+            description="Create a rectangle in Fusion 360 on the XZ plane (top view). The rectangle will be positioned with one corner at (x, z) and extend in the positive X and Z directions.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -57,7 +57,7 @@ async def list_tools() -> list[Tool]:
         # SKETCH LINE TOOL - Create a line on the XZ plane
         Tool(
             name="sketch_line",
-            description="Create a line in Fusion 360 on the XZ plane (vertical plane - front view). If xTwo and zTwo are not provided, the line will be drawn from the origin (0, 0) to (xOne, zOne). If all coordinates are provided, the line will be drawn from (xOne, zOne) to (xTwo, zTwo).NOTE CREATING MULTIPLES LINES TO CREATE A SHAPE, EVEN IF CLOSED, WILL STILL NOT ALLOW THE SHAPE TO BE EXTRUDED. SO DO NOT TRY CREATING AN OBJECT BY CONNECTING LINE AND EXTRUDING",
+            description="Create a line in Fusion 360 on the XZ plane (top view). If xTwo and zTwo are not provided, the line will be drawn from the origin (0, 0) to (xOne, zOne). If all coordinates are provided, the line will be drawn from (xOne, zOne) to (xTwo, zTwo). DO NOT TRY CREATING A SHAPE TO BE EXTRUDED BY COMBINING MUTLIPLE LINE SKETCHES. CREATING MULTIPLES LINES TO CREATE A SHAPE, EVEN IF CLOSED, WILL STILL NOT ALLOW THE SHAPE TO BE EXTRUDED AND WILL CAUSE AN ERROR. SO DO NOT TRY CREATING AN OBJECT BY CONNECTING LINE AND EXTRUDING",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -84,7 +84,7 @@ async def list_tools() -> list[Tool]:
         # SKETCH CIRCLE TOOL - Create a circle on the XZ plane
         Tool(
             name="sketch_circle",
-            description="Create a circle in Fusion 360 on the XZ plane (vertical plane - front view). You can specify either radius or diameter (at least one is required). The x and z coordinates specify the center of the circle and default to (0, 0) if not provided.",
+            description="Create a circle in Fusion 360 on the XZ plane (top view). You can specify either radius or diameter (at least one is required). The x and z coordinates specify the center of the circle and default to (0, 0) if not provided.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -111,13 +111,13 @@ async def list_tools() -> list[Tool]:
         # EXTRUDE TOOL - Turn a 2D sketch into a 3D body
         Tool(
             name="extrude_profile",
-            description="Extrude the most recent sketch to create a 3D body in Fusion 360. Must be called AFTER creating a sketch (like create_rectangle). The extrusion will be perpendicular to the sketch plane.",
+            description="Extrude the most recent sketch to create a 3D body in Fusion 360. Must be called AFTER creating a sketch (like create_rectangle). The extrusion will be perpendicular to the sketch plane. Positive distance means extrusion in the positive Y (up) direction while negative distances means extrusion in the negative Y (down) direction",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "distance": {
                         "type": "number",
-                        "description": "Extrusion distance in cm. Must be greater than 0 and less than 1000."
+                        "description": "Extrusion distance in cm. Must be between -1000 and 1000."
                     }
                 },
                 "required": ["distance"]
@@ -332,6 +332,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 type="text",
                 text="❌ Either radius or diameter must be provided"
             )]
+        
+        if radius < 0 or diameter < 0:
+            return [TextContent(
+                type="text",
+                text="❌ Radius or diameter can't be negative"
+            )]
 
         # Make the HTTP call to Fusion
         try:
@@ -393,17 +399,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         # Extract the distance parameter
         distance = arguments["distance"]
 
-        # VALIDATION
-        if distance <= 0:
+        if distance >= 100 or distance <= -100:
             return [TextContent(
                 type="text",
-                text=f"❌ Distance must be greater than 0 (you gave: {distance})"
-            )]
-
-        if distance >= 1000:
-            return [TextContent(
-                type="text",
-                text=f"❌ Distance must be less than 1000 cm (you gave: {distance})"
+                text=f"❌ Distance absolute value is too large. Can't be greater then 100 (you gave: {distance})"
             )]
 
         # Make the HTTP call to Fusion
@@ -454,16 +453,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         distance = arguments["distance"]
 
         # VALIDATION
-        if distance <= 0:
+        if distance < -1000 or distance > 1000:
             return [TextContent(
                 type="text",
-                text=f"❌ Distance must be greater than 0 (you gave: {distance})"
-            )]
-
-        if distance >= 1000:
-            return [TextContent(
-                type="text",
-                text=f"❌ Distance must be less than 1000 cm (you gave: {distance})"
+                text=f"❌ Distance too large (you gave: {distance})"
             )]
 
         # Make the HTTP call to Fusion
