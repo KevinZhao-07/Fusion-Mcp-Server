@@ -132,7 +132,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "distance": {
                         "type": "number",
-                        "description": "Extrusion distance in cm. Must be greater than 0 and less than 1000. This is how far the cut will extend."
+                        "description": "Extrusion distance in cm. Must be greater than -1000 and less than 1000. This is how far the cut will extend. Positive distance meanns cutting in positive Y axis (up) while negatie distance means cutting in negative Y axis(down)"
                     }
                 },
                 "required": ["distance"]
@@ -513,12 +513,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 text=f"❌ Radius must be greater than 0 (you gave: {radius})"
             )]
 
-        if radius >= 10:
-            return [TextContent(
-                type="text",
-                text=f"❌ Radius must be less than 10 cm (you gave: {radius}). Large fillets can fail."
-            )]
-
         # Make the HTTP call to Fusion
         try:
             async with httpx.AsyncClient() as client:
@@ -575,12 +569,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(
                 type="text",
                 text=f"❌ Distance must be greater than 0 (you gave: {distance})"
-            )]
-
-        if distance >= 10:
-            return [TextContent(
-                type="text",
-                text=f"❌ Distance must be atlesat less than half of the smallest side length  (you gave: {distance}). Large chamfers can fail."
             )]
 
         if angle <= 0 or angle >= 90:
