@@ -57,7 +57,7 @@ async def list_tools() -> list[Tool]:
         # SKETCH LINE TOOL - Create a line on the XZ plane
         Tool(
             name="sketch_line",
-            description="Create a line in Fusion 360 on the XZ plane (vertical plane - front view). If xTwo and zTwo are not provided, the line will be drawn from the origin (0, 0) to (xOne, zOne). If all coordinates are provided, the line will be drawn from (xOne, zOne) to (xTwo, zTwo).",
+            description="Create a line in Fusion 360 on the XZ plane (vertical plane - front view). If xTwo and zTwo are not provided, the line will be drawn from the origin (0, 0) to (xOne, zOne). If all coordinates are provided, the line will be drawn from (xOne, zOne) to (xTwo, zTwo).NOTE CREATING MULTIPLES LINES TO CREATE A SHAPE, EVEN IF CLOSED, WILL STILL NOT ALLOW THE SHAPE TO BE EXTRUDED. SO DO NOT TRY CREATING AN OBJECT BY CONNECTING LINE AND EXTRUDING",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -141,7 +141,7 @@ async def list_tools() -> list[Tool]:
         # FILLET TOOL - Round the edges of a 3D body
         Tool(
             name="fillet_edges",
-            description="Round all edges of the most recent 3D body in Fusion 360. Must be called AFTER creating a 3D body (via extrusion). All edges will be filleted with the same radius.",
+            description="Round all edges of the most recent 3D body in Fusion 360. Must be called AFTER creating a 3D body (via extrusion). All edges will be filleted with the same radius. FILLETS ALL EDGES",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -156,7 +156,7 @@ async def list_tools() -> list[Tool]:
         # CHAMFER TOOL - Bevel the edges of a 3D body
         Tool(
             name="chamfer_edges",
-            description="Chamfer (bevel) all edges of the most recent 3D body in Fusion 360. Must be called AFTER creating a 3D body (via extrusion). All edges will be chamfered with the specified distance and angle.",
+            description="Chamfer (bevel) all edges of the most recent 3D body in Fusion 360. Must be called AFTER creating a 3D body (via extrusion). All edges will be chamfered with the specified distance and angle. CHAMFERS ALL EDGES",
             inputSchema={
                 "type": "object",
                 "properties": {
