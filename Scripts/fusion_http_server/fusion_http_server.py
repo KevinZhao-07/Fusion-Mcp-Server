@@ -246,7 +246,6 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
 
             response = {
                 "status": "success",
-                "message": "hi",
                 "received": request_data
             }
 
