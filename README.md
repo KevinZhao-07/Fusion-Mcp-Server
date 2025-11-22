@@ -2,7 +2,7 @@
 
 ![AdamCAD](AdamCADColoured.png)
 
-<sub>*Note: Colors were added manually*</sub>
+<sub>*Note: Colours were added manually*</sub>
 
 Control Fusion 360 CAD software directly from Claude Desktop using the Model Context Protocol (MCP).
 
