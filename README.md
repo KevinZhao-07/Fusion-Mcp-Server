@@ -44,7 +44,7 @@ pip install mcp httpx
 
 1. Open Fusion 360
 2. Go to **Utilities** → **Scripts and Add-Ins** (or press Shift+S)
-3. Click the **+** button next to "My Scripts"
+3. Click the **+** button and go to "Script or add-in from device"
 4. Navigate to `Scripts/fusion_http_server/`
 5. The script should now appear in the list
 
@@ -154,7 +154,6 @@ Fusion-Mcp-Project/
 ├── server.py                 # MCP server (communicates with Claude Desktop)
 ├── README.md                 # This file
 ├── Notes.md                  # Design decisions and tradeoffs
-├── requirements.txt          # Python dependencies
 └── Scripts/
     └── fusion_http_server/
         └── fusion_http_server.py  # Fusion 360 HTTP server script
