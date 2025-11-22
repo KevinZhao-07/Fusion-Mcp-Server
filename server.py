@@ -84,7 +84,7 @@ async def list_tools() -> list[Tool]:
         # SKETCH CIRCLE TOOL - Create a circle on the XZ plane
         Tool(
             name="sketch_circle",
-            description="Create a circle in Fusion 360 on the XZ plane (top view). You can specify either radius or diameter (at least one is required). The x and z coordinates specify the center of the circle and default to (0, 0) if not provided.",
+            description="Create a circle in Fusion 360 on the XZ plane (top view). You can specify either radius or diameter (at least one is required and must be non negative). The x and z coordinates specify the center of the circle and default to (0, 0) if not provided.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -332,8 +332,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 type="text",
                 text="❌ Either radius or diameter must be provided"
             )]
-        
-        if radius < 0 or diameter < 0:
+
+        # Check for negative values (only if they're provided)
+        if (radius is not None and radius < 0) or (diameter is not None and diameter < 0):
             return [TextContent(
                 type="text",
                 text="❌ Radius or diameter can't be negative"
