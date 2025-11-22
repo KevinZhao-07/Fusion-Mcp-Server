@@ -11,8 +11,13 @@ build/
 dist/
 *.egg-info/
 
+# Environment files
+.env
+**/.env
+
 # IDE
 .vscode/
+**/.vscode/
 .idea/
 *.swp
 *.swo
@@ -27,3 +32,6 @@ Thumbs.db
 
 # Test files
 test_output/
+
+# Personal config files
+claude_desktop_config.json

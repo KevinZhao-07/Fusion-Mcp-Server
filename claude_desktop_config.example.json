@@ -3,7 +3,7 @@
     "fusion-cad": {
       "command": "python",
       "args": [
-        "C:\\Users\\kevin\\Desktop\\Fusion-Mcp-Project\\server.py"
+        "/path/to/your/Fusion-Mcp-Project/server.py"
       ]
     }
   }
