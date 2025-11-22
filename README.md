@@ -119,7 +119,7 @@ You'll see the box appear in Fusion 360 in real-time!
 
 | Tool | Description |
 |------|-------------|
-| `create_rectangle` | Create a rectangle on the XZ plane |
+| `sketch_rectangle` | Create a rectangle on the XZ plane |
 | `sketch_line` | Draw a line on the XZ plane |
 | `sketch_circle` | Create a circle (by radius or diameter) |
 | `extrude_profile` | Extrude a sketch into a 3D body |
