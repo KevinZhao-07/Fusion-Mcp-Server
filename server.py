@@ -36,11 +36,11 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "length": {
                         "type": "number",
-                        "description": "Length in cm (extends in positive X direction)"
+                        "description": "Length in cm (extends in positive Z direction - vertical)"
                     },
                     "width": {
                         "type": "number",
-                        "description": "Width in cm (extends in positive Z direction - vertical)"
+                        "description": "Width in cm (extends in positive X direction)"
                     },
                     "x": {
                         "type": "number",

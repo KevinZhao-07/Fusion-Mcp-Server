@@ -46,7 +46,7 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 # When using sketch points on XZ plane, use the sketch's model to sketch space
                 # In the sketch coordinate system: first param = X, second param = y third param = z
                 point1 = adsk.core.Point3D.create(x, z, 0)
-                point2 = adsk.core.Point3D.create(x + length, z + width, 0)
+                point2 = adsk.core.Point3D.create(x + width, z + length, 0)
 
                 # # Convert world coordinates to sketch coordinates
                 # point1 = sketch.modelToSketchSpace(point1)
@@ -56,7 +56,7 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
                 lines = sketch.sketchCurves.sketchLines
                 rectangle = lines.addTwoPointRectangle(point1, point2)
 
-                app.log(f"Rectangle created: {length} x {width} at ({x}, {z})")
+                app.log(f"Rectangle created: {width} x {length} at ({x}, {z})")
 
             if(tool == "sketchLine"):
                 x_one = request_data["params"]["xOne"]
