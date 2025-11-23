@@ -124,7 +124,7 @@ Although I implemented 8 tools, they group into 3 unique categories:
 - **Edge tools** (fillet, chamfer) - same pattern, different edge treatments
 - Plus one utility tool (clear)
 
-Each new tool built on knowledge from the previous one, making development efficient while demonstrating breadth.
+Each new tool built on knowledge from the previous one, making development easier.
 
 ## Single Plane
 I kept all the sketches to the XZ plane rather than allowing plane selection.
@@ -212,7 +212,7 @@ The MCP server doesn't track body dimensions so it is unable to validate it.
 - Would require you to keep track of profiles or you could keep track of sketch index
 - LLM can't see which profile is which
 
-**No Polyline Tool (Very Useful)**
+**No Polyline Tool**
 - Right now limited to rectangles and circles
 - Creating polyline would allow creation of any non-curved object/shape
 
