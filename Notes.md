@@ -124,7 +124,7 @@ Although I implemented 8 tools, they group into 3 unique categories:
 - **Edge tools** (fillet, chamfer) - same pattern, different edge treatments
 - Plus one utility tool (clear)
 
-Each new tool built on knowledge from the previous one, making development easier.
+Each new tool built on knowledge from the previous one, making development more efficient.
 
 ## Single Plane
 I kept all the sketches to the XZ plane rather than allowing plane selection.
@@ -193,6 +193,35 @@ The MCP server doesn't track body dimensions so it is unable to validate it.
 - Fusion's run() function must return quickly to keep UI responsive
 - Background thread allows both to happen simultaneously
 - Daemon thread ensures clean shutdown when Fusion closes
+
+## Design Decision: HTTP Server Choice (http.server vs Flask/FastAPI)
+
+I chose Python's built-in `http.server` module instead of web frameworks like Flask or FastAPI.
+
+**Why http.server:**
+- Zero dependencies - part of Python's standard library, no installation needed
+- Sufficient for simple use case (Few endpoints, localhost only, single client)
+- Easy integration with threading model required for Fusion add-ins
+- Aligns with assignment emphasis on "minimal" implementation
+
+**What Flask/FastAPI would provide:**
+- Cleaner routing syntax with decorators
+- Automatic JSON parsing and response creation
+- Built-in request validation
+
+**Why those features aren't needed:**
+- Only 8 simple endpoints to route
+- Manual JSON handling is straightforward for this scale
+- Localhost-only communication
+- Single client (just the MCP server)
+
+**Threading consideration:**
+Flask's `app.run()` blocks forever, which conflicts with Fusion's requirement that the `run()` function returns quickly. While Flask can run in a thread, it adds complexity without benefit for this use case.
+
+**Tradeoff:**
+- More manual code (reading requests, parsing JSON, routing with if/elif)
+- Less elegant than Flask's decorator syntax
+- But: simpler dependencies, easier threading, appropriate for scope
 
 ## Limitations/Known Issues
 
