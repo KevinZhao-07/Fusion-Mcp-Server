@@ -25,18 +25,18 @@ async def call_fusion_api(tool_name: str, params: dict, success_message: str) ->
             result = response.json()
 
             if result.get("status") == "success":
-                return [TextContent(type="text", text=f"✅ {success_message}")]
+                return [TextContent(type="text", text=f"{success_message}")]
             else:
                 error_msg = result.get('message', 'Unknown error')
-                return [TextContent(type="text", text=f"❌ Failed: {error_msg}")]
+                return [TextContent(type="text", text=f"Failed: {error_msg}")]
 
     except httpx.ConnectError:
         return [TextContent(
             type="text",
-            text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
+            text="Cannot connect to Fusion server. Is the Fusion HTTP server running?"
         )]
     except Exception as e:
-        return [TextContent(type="text", text=f"❌ Error: {str(e)}")]
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
