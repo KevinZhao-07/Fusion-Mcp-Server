@@ -1,32 +1,45 @@
-#!/usr/bin/env python3
-"""
-Fusion 360 MCP Server - Built step by step
-"""
-
 import asyncio
 import httpx
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-# Step 1: Create the MCP server
-# This is like saying "I'm creating a new tool that Claude can use"
 app = Server("fusion-cad-server")
 
-# The URL where your Fusion HTTP server is running
 FUSION_URL = "http://localhost:8080"
 
+# Helper to avoid repeating HTTP/error handling code
+async def call_fusion_api(tool_name: str, params: dict, success_message: str) -> list[TextContent]:
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                FUSION_URL,
+                json={
+                    "tool": tool_name,
+                    "params": params
+                },
+                timeout=10.0
+            )
 
-# Step 2: Tell Claude what tools are available
-# This function gets called when Claude asks "what tools do you have?"
+            response.raise_for_status()
+            result = response.json()
+
+            if result.get("status") == "success":
+                return [TextContent(type="text", text=f"✅ {success_message}")]
+            else:
+                error_msg = result.get('message', 'Unknown error')
+                return [TextContent(type="text", text=f"❌ Failed: {error_msg}")]
+
+    except httpx.ConnectError:
+        return [TextContent(
+            type="text",
+            text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
+        )]
+    except Exception as e:
+        return [TextContent(type="text", text=f"❌ Error: {str(e)}")]
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
-    """
-    This returns a list of tools that Claude can call.
-    Think of it like a menu at a restaurant - you're showing what's available.
-
-    IMPORTANT: We need to return Tool objects, not plain dictionaries!
-    """
     return [
         Tool(
             name="create_rectangle",
@@ -54,7 +67,7 @@ async def list_tools() -> list[Tool]:
                 "required": ["length", "width"]
             }
         ),
-        # SKETCH LINE TOOL - Create a line on the XZ plane
+        # LINE TOOL
         Tool(
             name="sketch_line",
             description="Create a line in Fusion 360 on the XZ plane (top view). If xTwo and zTwo are not provided, the line will be drawn from the origin (0, 0) to (xOne, zOne). If all coordinates are provided, the line will be drawn from (xOne, zOne) to (xTwo, zTwo). DO NOT TRY CREATING A SHAPE TO BE EXTRUDED BY COMBINING MUTLIPLE LINE SKETCHES. CREATING MULTIPLES LINES TO CREATE A SHAPE, EVEN IF CLOSED, WILL STILL NOT ALLOW THE SHAPE TO BE EXTRUDED AND WILL CAUSE AN ERROR. SO DO NOT TRY CREATING AN OBJECT BY CONNECTING LINE AND EXTRUDING",
@@ -81,7 +94,7 @@ async def list_tools() -> list[Tool]:
                 "required": ["xOne", "zOne"]
             }
         ),
-        # SKETCH CIRCLE TOOL - Create a circle on the XZ plane
+        # CIRCLE TOOL
         Tool(
             name="sketch_circle",
             description="Create a circle in Fusion 360 on the XZ plane (top view). You can specify either radius or diameter (at least one is required and must be non negative). The x and z coordinates specify the center of the circle and default to (0, 0) if not provided.",
@@ -108,7 +121,7 @@ async def list_tools() -> list[Tool]:
                 "required": []
             }
         ),
-        # EXTRUDE TOOL - Turn a 2D sketch into a 3D body
+        # EXTRUDE TOOL
         Tool(
             name="extrude_profile",
             description="Extrude the most recent sketch to create a 3D body in Fusion 360. Must be called AFTER creating a sketch (like create_rectangle). The extrusion will be perpendicular to the sketch plane. Positive distance means extrusion in the positive Y (up) direction while negative distances means extrusion in the negative Y (down) direction",
@@ -123,7 +136,7 @@ async def list_tools() -> list[Tool]:
                 "required": ["distance"]
             }
         ),
-        # EXTRUDE CUT TOOL - Cut through existing bodies
+        # EXTRUDE CUT TOOL
         Tool(
             name="extrude_cut",
             description="Extrude cut through existing bodies in Fusion 360. Must be called AFTER creating a sketch (like create_rectangle or sketch_circle). The sketch profile will be extruded and automatically cut through any bodies it intersects. The extrusion will be perpendicular to the sketch plane.",
@@ -138,7 +151,7 @@ async def list_tools() -> list[Tool]:
                 "required": ["distance"]
             }
         ),
-        # FILLET TOOL - Round the edges of a 3D body
+        # FILLET TOOL
         Tool(
             name="fillet_edges",
             description="Round all edges of the most recent 3D body in Fusion 360. Must be called AFTER creating a 3D body (via extrusion). All edges will be filleted with the same radius. FILLETS ALL EDGES",
@@ -153,7 +166,7 @@ async def list_tools() -> list[Tool]:
                 "required": ["radius"]
             }
         ),
-        # CHAMFER TOOL - Bevel the edges of a 3D body
+        # CHAMFER TOOL
         Tool(
             name="chamfer_edges",
             description="Chamfer (bevel) all edges of the most recent 3D body in Fusion 360. Must be called AFTER creating a 3D body (via extrusion). All edges will be chamfered with the specified distance and angle. CHAMFERS ALL EDGES",
@@ -172,7 +185,37 @@ async def list_tools() -> list[Tool]:
                 "required": ["distance"]
             }
         ),
-        # CLEAR TOOL - Clear all sketches and bodies
+        # POLYLINE TOOL
+        Tool(
+            name="sketch_polyline",
+            description="Create a polyline (connected line segments) in Fusion 360 on the XZ plane. Provide an array of points and they will be connected in order. If you want a closed polygon, make the last point equal to the first point.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "points": {
+                        "type": "array",
+                        "description": "Array of points to connect. Each point has x and z coordinates in cm.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "x": {
+                                    "type": "number",
+                                    "description": "X coordinate in cm"
+                                },
+                                "z": {
+                                    "type": "number",
+                                    "description": "Z coordinate in cm"
+                                }
+                            },
+                            "required": ["x", "z"]
+                        },
+                        "minItems": 2
+                    }
+                },
+                "required": ["points"]
+            }
+        ),
+        # CLEAR TOOL
         Tool(
             name="clear_all",
             description="Clear all sketches and 3D bodies from the Fusion 360 design. This removes everything from the workspace, giving you a clean slate.",
@@ -185,482 +228,161 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-# Step 3: Handle when Claude actually CALLS a tool
-# This function gets called when Claude says "okay, create a rectangle with length=10, width=5"
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    """
-    This is where the actual work happens.
-    - name: which tool Claude wants to use (e.g., "create_rectangle")
-    - arguments: the parameters Claude is passing (e.g., {"length": 10, "width": 5})
-
-    IMPORTANT: We need to return TextContent objects, not plain dictionaries!
-    """
-
     if name == "create_rectangle":
         length = arguments["length"]
         width = arguments["width"]
-        x = arguments.get("x", 0)  # Default to 0 if not provided
-        z = arguments.get("z", 0)  # Default to 0 if not provided
+        x = arguments.get("x", 0)
+        z = arguments.get("z", 0)
 
-        # NOW: Actually call Fusion!
-        # We'll make an HTTP POST request to your Fusion server
-        try:
-            # Create an HTTP client (async version)
-            async with httpx.AsyncClient() as client:
-                # Make the POST request
-                # Remember: your Fusion server expects {"tool": "sketchRectangle", "params": {...}}
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "sketchRectangle",
-                        "params": {
-                            "length": length,
-                            "width": width,
-                            "x": x,
-                            "z": z
-                        }
-                    },
-                    timeout=10.0  # Wait up to 10 seconds
-                )
+        # Build success message
+        if x == 0 and z == 0:
+            msg = f"Rectangle created: {length} cm x {width} cm at origin"
+        else:
+            msg = f"Rectangle created: {length} cm x {width} cm at ({x}, {z})"
 
-                # Check if it worked
-                response.raise_for_status()  # Raises error if status code is 4xx or 5xx
-                result = response.json()
-
-                # Check the response from Fusion
-                if result.get("status") == "success":
-                    if x == 0 and z == 0:
-                        return [TextContent(
-                            type="text",
-                            text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm at origin (0, 0)"
-                        )]
-                    else:
-                        return [TextContent(
-                            type="text",
-                            text=f"✅ Rectangle created in Fusion 360: {length} cm x {width} cm at position ({x}, {z})"
-                        )]
-                else:
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Fusion error: {result.get('message', 'Unknown error')}"
-                    )]
-
-        except httpx.ConnectError:
-            # This happens if Fusion server isn't running
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            # Any other error
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="sketchRectangle",
+            params={"length": length, "width": width, "x": x, "z": z},
+            success_message=msg
+        )
 
     elif name == "sketch_line":
-        # Extract the parameters
         x_one = arguments["xOne"]
         z_one = arguments["zOne"]
         x_two = arguments.get("xTwo")
         z_two = arguments.get("zTwo")
 
-        # Make the HTTP call to Fusion
-        try:
-            async with httpx.AsyncClient() as client:
-                # Build params - only include xTwo/zTwo if both are provided
-                params = {
-                    "xOne": x_one,
-                    "zOne": z_one
-                }
-                if x_two is not None and z_two is not None:
-                    params["xTwo"] = x_two
-                    params["zTwo"] = z_two
+        # Build params - only include xTwo/zTwo if both are provided
+        params = {"xOne": x_one, "zOne": z_one}
+        if x_two is not None and z_two is not None:
+            params["xTwo"] = x_two
+            params["zTwo"] = z_two
 
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "sketchLine",
-                        "params": params
-                    },
-                    timeout=10.0
-                )
+        # Build success message
+        if x_two is None or z_two is None:
+            msg = f"Line created from origin (0, 0) to ({x_one}, {z_one})"
+        else:
+            msg = f"Line created from ({x_one}, {z_one}) to ({x_two}, {z_two})"
 
-                response.raise_for_status()
-                result = response.json()
-
-                if result.get("status") == "success":
-                    if x_two is None or z_two is None:
-                        return [TextContent(
-                            type="text",
-                            text=f"✅ Line created from origin (0, 0) to ({x_one}, {z_one})"
-                        )]
-                    else:
-                        return [TextContent(
-                            type="text",
-                            text=f"✅ Line created from ({x_one}, {z_one}) to ({x_two}, {z_two})"
-                        )]
-                else:
-                    error_msg = result.get('message', 'Unknown error')
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Line creation failed: {error_msg}"
-                    )]
-
-        except httpx.ConnectError:
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="sketchLine",
+            params=params,
+            success_message=msg
+        )
 
     elif name == "sketch_circle":
-        # Extract the parameters
         radius = arguments.get("radius")
         diameter = arguments.get("diameter")
         x = arguments.get("x", 0)
         z = arguments.get("z", 0)
 
-        # Validation - at least one of radius or diameter must be provided
+        # Validation
         if radius is None and diameter is None:
-            return [TextContent(
-                type="text",
-                text="❌ Either radius or diameter must be provided"
-            )]
+            return [TextContent(type="text", text="❌ Either radius or diameter must be provided")]
 
-        # Check for negative values (only if they're provided)
         if (radius is not None and radius < 0) or (diameter is not None and diameter < 0):
-            return [TextContent(
-                type="text",
-                text="❌ Radius or diameter can't be negative"
-            )]
+            return [TextContent(type="text", text="❌ Radius or diameter can't be negative")]
 
-        # Make the HTTP call to Fusion
-        try:
-            async with httpx.AsyncClient() as client:
-                # Build params
-                params = {
-                    "x": x,
-                    "z": z
-                }
-                if radius is not None:
-                    params["radius"] = radius
-                if diameter is not None:
-                    params["diameter"] = diameter
+        # Build params
+        params = {"x": x, "z": z}
+        if radius is not None:
+            params["radius"] = radius
+        if diameter is not None:
+            params["diameter"] = diameter
 
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "sketchCircle",
-                        "params": params
-                    },
-                    timeout=10.0
-                )
+        # Build success message
+        display_radius = radius if radius is not None else diameter / 2.0
+        if x == 0 and z == 0:
+            msg = f"Circle created at origin with radius {display_radius} cm"
+        else:
+            msg = f"Circle created at ({x}, {z}) with radius {display_radius} cm"
 
-                response.raise_for_status()
-                result = response.json()
-
-                if result.get("status") == "success":
-                    # Calculate what to display
-                    display_radius = radius if radius is not None else diameter / 2.0
-                    if x == 0 and z == 0:
-                        return [TextContent(
-                            type="text",
-                            text=f"✅ Circle created at origin with radius {display_radius} cm"
-                        )]
-                    else:
-                        return [TextContent(
-                            type="text",
-                            text=f"✅ Circle created at ({x}, {z}) with radius {display_radius} cm"
-                        )]
-                else:
-                    error_msg = result.get('message', 'Unknown error')
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Circle creation failed: {error_msg}"
-                    )]
-
-        except httpx.ConnectError:
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="sketchCircle",
+            params=params,
+            success_message=msg
+        )
 
     elif name == "extrude_profile":
-        # Extract the distance parameter
         distance = arguments["distance"]
 
+        # Validation
         if distance >= 100 or distance <= -100:
             return [TextContent(
                 type="text",
-                text=f"❌ Distance absolute value is too large. Can't be greater then 100 (you gave: {distance})"
+                text=f"❌ Distance absolute value is too large. Can't be greater than 100 (you gave: {distance})"
             )]
 
-        # Make the HTTP call to Fusion
-        try:
-            async with httpx.AsyncClient() as client:
-                # Your Fusion server expects {"tool": "extrude", "params": {"distance": ...}}
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "extrude",
-                        "params": {
-                            "distance": distance
-                        }
-                    },
-                    timeout=10.0
-                )
-
-                response.raise_for_status()
-                result = response.json()
-
-                if result.get("status") == "success":
-                    return [TextContent(
-                        type="text",
-                        text=f"✅ Extrusion created: {distance} cm tall, 3D body formed"
-                    )]
-                else:
-                    # Give helpful error message
-                    error_msg = result.get('message', 'Unknown error')
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Extrusion failed: {error_msg}\n\n"
-                             f"Did you create a sketch first (like create_rectangle)?"
-                    )]
-
-        except httpx.ConnectError:
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="extrude",
+            params={"distance": distance},
+            success_message=f"Extrusion created: {distance} cm tall, 3D body formed"
+        )
 
     elif name == "extrude_cut":
-        # Extract the distance parameter
         distance = arguments["distance"]
 
-        # VALIDATION
+        # Validation
         if distance < -1000 or distance > 1000:
-            return [TextContent(
-                type="text",
-                text=f"❌ Distance too large (you gave: {distance})"
-            )]
+            return [TextContent(type="text", text=f"❌ Distance too large (you gave: {distance})")]
 
-        # Make the HTTP call to Fusion
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "extrudeCut",
-                        "params": {
-                            "distance": distance
-                        }
-                    },
-                    timeout=10.0
-                )
-
-                response.raise_for_status()
-                result = response.json()
-
-                if result.get("status") == "success":
-                    return [TextContent(
-                        type="text",
-                        text=f"✅ Extrude cut created: {distance} cm deep, cutting through intersecting bodies"
-                    )]
-                else:
-                    # Give helpful error message
-                    error_msg = result.get('message', 'Unknown error')
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Extrude cut failed: {error_msg}\n\n"
-                             f"Did you create a sketch first (like sketch_circle or create_rectangle)?"
-                    )]
-
-        except httpx.ConnectError:
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="extrudeCut",
+            params={"distance": distance},
+            success_message=f"Extrude cut created: {distance} cm deep, cutting through intersecting bodies"
+        )
 
     elif name == "fillet_edges":
-        # Extract the radius parameter
         radius = arguments["radius"]
 
-        # VALIDATION - This is important for fillet!
-        # If radius is too large, Fusion will fail
+        # Validation
         if radius <= 0:
-            return [TextContent(
-                type="text",
-                text=f"❌ Radius must be greater than 0 (you gave: {radius})"
-            )]
+            return [TextContent(type="text", text=f"❌ Radius must be greater than 0 (you gave: {radius})")]
 
-        # Make the HTTP call to Fusion
-        try:
-            async with httpx.AsyncClient() as client:
-                # Your Fusion server expects {"tool": "fillet", "params": {"radius": ...}}
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "fillet",
-                        "params": {
-                            "radius": radius
-                        }
-                    },
-                    timeout=10.0
-                )
-
-                response.raise_for_status()
-                result = response.json()
-
-                if result.get("status") == "success":
-                    return [TextContent(
-                        type="text",
-                        text=f"✅ Fillet applied to all edges: {radius} cm radius"
-                    )]
-                else:
-                    # Fillet can fail for many reasons - give helpful error
-                    error_msg = result.get('message', 'Unknown error')
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Fillet failed: {error_msg}\n\n"
-                             f"Common reasons:\n"
-                             f"- No 3D body exists (did you extrude first?)\n"
-                             f"- Radius is too large for the geometry\n"
-                             f"- The body has no edges to fillet"
-                    )]
-
-        except httpx.ConnectError:
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="fillet",
+            params={"radius": radius},
+            success_message=f"Fillet applied to all edges: {radius} cm radius"
+        )
 
     elif name == "chamfer_edges":
-        # Extract the parameters
         distance = arguments["distance"]
-        angle = arguments.get("angle", 45.0)  # Default to 45 degrees
+        angle = arguments.get("angle", 45.0)
 
-        # VALIDATION
+        # Validation
         if distance <= 0:
-            return [TextContent(
-                type="text",
-                text=f"❌ Distance must be greater than 0 (you gave: {distance})"
-            )]
+            return [TextContent(type="text", text=f"❌ Distance must be greater than 0 (you gave: {distance})")]
 
         if angle <= 0 or angle >= 90:
-            return [TextContent(
-                type="text",
-                text=f"❌ Angle must be between 0 and 90 degrees (you gave: {angle})"
-            )]
+            return [TextContent(type="text", text=f"❌ Angle must be between 0 and 90 degrees (you gave: {angle})")]
 
-        # Make the HTTP call to Fusion
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "chamfer",
-                        "params": {
-                            "distance": distance,
-                            "angle": angle
-                        }
-                    },
-                    timeout=10.0
-                )
+        return await call_fusion_api(
+            tool_name="chamfer",
+            params={"distance": distance, "angle": angle},
+            success_message=f"Chamfer applied to all edges: {distance} cm distance at {angle}°"
+        )
 
-                response.raise_for_status()
-                result = response.json()
+    elif name == "sketch_polyline":
+        points = arguments["points"]
 
-                if result.get("status") == "success":
-                    return [TextContent(
-                        type="text",
-                        text=f"✅ Chamfer applied to all edges: {distance} cm distance at {angle}°"
-                    )]
-                else:
-                    error_msg = result.get('message', 'Unknown error')
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Chamfer failed: {error_msg}\n\n"
-                             f"Common reasons:\n"
-                             f"- No 3D body exists (did you extrude first?)\n"
-                             f"- Distance is too large for the geometry\n"
-                             f"- The body has no edges to chamfer"
-                    )]
+        # Validation
+        if len(points) < 2:
+            return [TextContent(type="text", text="❌ Need at least 2 points to create a polyline")]
 
-        except httpx.ConnectError:
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="sketchPolyline",
+            params={"points": points},
+            success_message=f"Polyline created with {len(points)} points"
+        )
 
     elif name == "clear_all":
-        # No parameters needed for clear
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    FUSION_URL,
-                    json={
-                        "tool": "clear",
-                        "params": {}
-                    },
-                    timeout=10.0
-                )
-
-                response.raise_for_status()
-                result = response.json()
-
-                if result.get("status") == "success":
-                    return [TextContent(
-                        type="text",
-                        text=f"✅ Cleared all sketches and bodies from Fusion 360 workspace"
-                    )]
-                else:
-                    error_msg = result.get('message', 'Unknown error')
-                    return [TextContent(
-                        type="text",
-                        text=f"❌ Clear failed: {error_msg}"
-                    )]
-
-        except httpx.ConnectError:
-            return [TextContent(
-                type="text",
-                text="❌ Cannot connect to Fusion server. Is the Fusion HTTP server running?"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error: {str(e)}"
-            )]
+        return await call_fusion_api(
+            tool_name="clear",
+            params={},
+            success_message="Cleared all sketches and bodies from Fusion 360 workspace"
+        )
 
     else:
         return [TextContent(
@@ -668,14 +390,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             text=f"Unknown tool: {name}"
         )]
 
-
-# Step 4: Run the server
-# This starts the server and keeps it running, waiting for Claude to talk to it
 async def main():
-    """
-    This starts the MCP server using stdio (standard input/output).
-    stdio means: Claude Desktop will talk to this program through text in/out
-    """
     async with stdio_server() as (read_stream, write_stream):
         await app.run(
             read_stream,
@@ -683,7 +398,5 @@ async def main():
             app.create_initialization_options()
         )
 
-
 if __name__ == "__main__":
-    # When you run "python server.py", this starts everything
     asyncio.run(main())
